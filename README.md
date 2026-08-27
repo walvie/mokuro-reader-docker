@@ -196,6 +196,33 @@ For OneDrive, register an Azure AD app ("common" authority) and add your deploy
 origin as a **Single-page application** redirect URI. When unset, the OneDrive
 option is hidden. MEGA, WebDAV, and Local Folder need no configuration.
 
+## 🐳 Self-Hosting with Docker
+
+Mokuro Reader is a fully client-side app (all data lives in your browser's
+IndexedDB), so self-hosting just means serving the static build — the
+included `Dockerfile` builds it and serves it with nginx.
+
+```bash
+git clone https://github.com/Gnathonic/mokuro-reader
+cd mokuro-reader
+docker compose up -d --build
+```
+
+The app is then available at `http://localhost:8080`. Set `PORT` to use a
+different host port.
+
+To enable Google Drive and/or OneDrive sync, copy `.env.example` to `.env`
+and fill in the values described above, then restart the container:
+
+```bash
+cp .env.example .env
+# edit .env
+docker compose up -d
+```
+
+These are applied when the container starts (via `docker/docker-entrypoint.sh`),
+so changing `.env` and restarting is enough — no image rebuild required.
+
 ## 💬 Community
 
 Wanna chat with the devs? Share your hopes, dreams, and issues (with Mokuro Reader specifically)? Come join the [Mokuro Reader Discord](https://discord.gg/AU5pjjSQBw)!
