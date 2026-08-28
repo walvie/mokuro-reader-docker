@@ -11,6 +11,15 @@
 # architecture — without it, pip install would fail outright on a platform
 # with no matching wheel (e.g. some arm64 hosts) instead of compiling from
 # source. This does make the image larger and the first build slower.
+#
+# mokuro declares a direct dependency on `opencv-python` (the GUI/X11-linked
+# build) even though nothing here ever opens a window — its `import cv2`
+# then fails on a slim base image with e.g. "libxcb.so.1: cannot open shared
+# object file" (Debian's minimal image has none of the X11/GTK libraries
+# that build links against). Rather than chase that dependency chain one
+# apt package at a time, swap it for opencv-python-headless — identical cv2
+# API, zero GUI dependencies — right after mokuro installs it. This is a
+# well-established pattern for opencv-python in headless/server containers.
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -26,7 +35,9 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir mokuro
+    && pip install --no-cache-dir mokuro \
+    && pip uninstall -y opencv-python \
+    && pip install --no-cache-dir opencv-python-headless
 
 COPY app ./app
 
