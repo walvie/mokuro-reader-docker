@@ -15,6 +15,7 @@ function volumeSummary(entry: VolumeIndexEntry) {
     series_uuid: entry.seriesUuid,
     series_title: entry.seriesTitle,
     volume_title: entry.volumeTitle,
+    library_path: entry.libraryPath,
     mokuro_version: entry.mokuroVersion,
     page_count: entry.pageCount,
     character_count: entry.characterCount,

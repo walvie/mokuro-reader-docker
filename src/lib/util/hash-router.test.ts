@@ -7,6 +7,11 @@ describe('parseHash', () => {
     expect(result).toEqual({ type: 'merge-series' });
   });
 
+  test('handles mokuro-processing route', () => {
+    const result = parseHash('#/mokuro-processing');
+    expect(result).toEqual({ type: 'mokuro-processing' });
+  });
+
   test('routes libraries path to catalog while feature is hidden', () => {
     const result = parseHash('#/libraries');
     expect(result).toEqual({ type: 'catalog' });
@@ -35,6 +40,11 @@ describe('viewToHash', () => {
     const result = viewToHash({ type: 'merge-series' });
     expect(result).toBe('#/merge-series');
   });
+
+  test('generates mokuro-processing hash', () => {
+    const result = viewToHash({ type: 'mokuro-processing' });
+    expect(result).toBe('#/mokuro-processing');
+  });
 });
 
 describe('removed libraries routes', () => {
@@ -47,5 +57,9 @@ describe('removed libraries routes', () => {
 describe('nav helpers', () => {
   test('nav.toMergeSeries exists and is callable', () => {
     expect(typeof nav.toMergeSeries).toBe('function');
+  });
+
+  test('nav.toMokuroProcessing exists and is callable', () => {
+    expect(typeof nav.toMokuroProcessing).toBe('function');
   });
 });

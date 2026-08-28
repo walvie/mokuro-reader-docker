@@ -77,6 +77,7 @@ describe('library server HTTP API', () => {
       volume_uuid: 'houseki-volume-02-uuid',
       series_title: 'Houseki no Kuni',
       volume_title: 'Volume 02',
+      library_path: 'Houseki no Kuni/Volume 02',
       page_count: 2,
       cover_path: '0001.webp'
     });

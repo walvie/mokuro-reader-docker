@@ -28,6 +28,7 @@ interface ServerVolumeSummary {
   series_uuid: string;
   series_title: string;
   volume_title: string;
+  library_path: string;
   mokuro_version: string;
   page_count: number;
   character_count: number;
@@ -72,7 +73,8 @@ function toVolumeMetadata(summary: ServerVolumeSummary): VolumeMetadata {
     missing_pages: summary.missing_pages,
     missing_page_paths: summary.missing_page_paths,
     spine_width: summary.spine_width,
-    isServerLibrary: true
+    isServerLibrary: true,
+    serverLibraryPath: summary.library_path
   };
 }
 
