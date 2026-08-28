@@ -310,7 +310,12 @@ queue, progress tracking, and API are thoroughly tested against a fake
 mokuro process standing in for the real one) — the actual `python -m
 mokuro` invocation was verified against mokuro's published source rather
 than a live run. Keep an eye on the job log (expand "Show log" on a failed
-job) the first time you process something for real.
+job) the first time you process something for real. (One such issue already
+surfaced and was fixed this way: mokuro depends on `opencv-python`, whose
+GUI/X11 bindings fail to import on a minimal Debian image with
+`libxcb.so.1: cannot open shared object file`; the Dockerfile now swaps it
+for `opencv-python-headless` right after install, which needs no GUI
+libraries at all.)
 
 ## 💬 Community
 
