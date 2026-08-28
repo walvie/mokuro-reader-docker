@@ -38,8 +38,21 @@ export function matchFilesToPages(files: Record<string, File>, pages: Page[]): F
     normalizedToKey.set(normalizeFilename(key), key);
   }
 
-  // Strategy 1: Try exact path matching (with normalization)
-  let allExactMatches = true;
+  // Strategy 1: Try exact path matching (with normalization).
+  //
+  // Unlike strategies 2-5 below, this does NOT require every page to match
+  // before the results are trusted: an exact img_path match is unambiguous
+  // on its own, regardless of how many other pages have no match yet. This
+  // matters for a volume whose images are still streaming in (e.g. a
+  // server-library volume fetched progressively over HTTP — see
+  // loadServerVolumeData) — files map keys there are always literal
+  // img_path values, so partial exact matches are trustworthy and pages
+  // with no match yet should be left undefined ("not loaded"), not
+  // misassigned by falling through to the positional Strategy 5 fallback
+  // below (which would pair whatever subset has arrived so far to the
+  // WRONG page indices, since concurrent fetches don't resolve in page
+  // order).
+  let matchedCount = 0;
   for (let i = 0; i < pages.length; i++) {
     const imgPath = pages[i].img_path;
     const normalizedImgPath = normalizeFilename(imgPath);
@@ -47,15 +60,14 @@ export function matchFilesToPages(files: Record<string, File>, pages: Page[]): F
     // Try direct match first, then normalized match
     if (files[imgPath]) {
       result[i] = files[imgPath];
+      matchedCount++;
     } else if (normalizedToKey.has(normalizedImgPath)) {
       result[i] = files[normalizedToKey.get(normalizedImgPath)!];
-    } else {
-      allExactMatches = false;
-      break;
+      matchedCount++;
     }
   }
 
-  if (allExactMatches) {
+  if (matchedCount > 0) {
     return result;
   }
 
@@ -183,21 +195,31 @@ export class ImageCache {
   private pages: Page[] = [];
   private currentIndex = 0;
   private windowSize = { prev: 2, next: 3 };
+  // Count of files actually available as of the last rebuild — NOT the same
+  // as this.files.length, which matchFilesToPages always sizes to
+  // pages.length (with holes for pages not yet loaded) regardless of how
+  // many files have actually arrived.
+  private lastFileCount = -1;
 
   /**
    * Initialize or update the cache with new files and current page
    * Returns immediately - all preloading happens in the background
    */
   updateCache(files: Record<string, File>, pages: Page[], currentIndex: number): void {
-    // Detect if we have new files by checking reference and length
+    // Detect if we have new files by checking how many have actually
+    // arrived since the last call, not this.files.length (which is always
+    // pages.length once set — comparing against it would rebuild on every
+    // single call for as long as a volume is still streaming in, including
+    // calls triggered only by a page turn with no new files at all).
     const fileCount = Object.keys(files).length;
-    const filesChanged = this.files.length !== fileCount || this.pages !== pages;
+    const filesChanged = this.lastFileCount !== fileCount || this.pages !== pages;
 
     // Clear old cache and build indexed files array if files changed
     if (filesChanged) {
       this.cleanup();
       this.files = matchFilesToPages(files, pages);
       this.pages = pages;
+      this.lastFileCount = fileCount;
     }
 
     this.currentIndex = currentIndex;

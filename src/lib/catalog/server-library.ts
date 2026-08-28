@@ -195,6 +195,7 @@ async function fetchCoverThumbnail(summary: ServerVolumeSummary): Promise<Thumbn
 }
 
 const PAGE_FETCH_CONCURRENCY = 6;
+const PROGRESS_EMIT_INTERVAL_MS = 200;
 
 async function fetchPage(volumeUuid: string, imgPath: string): Promise<File | null> {
   try {
@@ -209,34 +210,86 @@ async function fetchPage(volumeUuid: string, imgPath: string): Promise<File | nu
 }
 
 /**
- * Load a server-library volume's OCR data and page images for the reader.
- * Fetches every page image up front (bounded concurrency) into in-memory
- * File objects — nothing touches IndexedDB. For a very large volume this
- * means a bulk fetch rather than true per-page streaming, but it lets the
- * volume plug into the existing reader pipeline (ImageCache et al.)
- * completely unmodified.
+ * Build a page-index fetch order that starts at `startIndex` and expands
+ * outward (start, start+1, start-1, start+2, start-2, ...) rather than the
+ * volume's natural front-to-back order. Combined with onProgress below, this
+ * means the reader's current page (and its near neighbors) are almost always
+ * among the first images to arrive, regardless of where in the volume the
+ * reader resumed.
  */
-export async function loadServerVolumeData(volumeUuid: string): Promise<VolumeData | undefined> {
+function buildFetchOrder(length: number, startIndex: number): number[] {
+  if (length === 0) return [];
+  const start = Math.min(Math.max(startIndex, 0), length - 1);
+  const order: number[] = [start];
+  let lo = start - 1;
+  let hi = start + 1;
+  while (lo >= 0 || hi < length) {
+    if (hi < length) order.push(hi++);
+    if (lo >= 0) order.push(lo--);
+  }
+  return order;
+}
+
+/**
+ * Load a server-library volume's OCR data and page images for the reader.
+ *
+ * Page images are fetched with bounded concurrency (in `startIndex`-outward
+ * order, see buildFetchOrder) directly into in-memory File objects — nothing
+ * touches IndexedDB. When `onProgress` is given, it's invoked with the
+ * VolumeData built from whatever files have arrived so far — first as soon
+ * as OCR/page structure is known (before any image has arrived, so the
+ * reader can mount immediately), then again (time-throttled, except the very
+ * first image which is always force-emitted) as images stream in — so the
+ * reader can show pages as their images become available instead of waiting
+ * for the entire volume to download. The returned promise still only
+ * resolves once every page has been attempted, for callers that don't care
+ * about progressive loading.
+ */
+export async function loadServerVolumeData(
+  volumeUuid: string,
+  onProgress?: (partial: VolumeData) => void,
+  startIndex = 0
+): Promise<VolumeData | undefined> {
   const ocr = await fetchServerVolumeOcr(volumeUuid);
   if (!ocr) return undefined;
 
+  const pages = ocr.pages;
   const files: Record<string, File> = {};
-  const imgPaths = ocr.pages.map((p) => p.img_path);
-  let cursor = 0;
+  const imgPaths = pages.map((p) => p.img_path);
+
+  onProgress?.({ volume_uuid: volumeUuid, pages, files: {} });
+
+  const order = buildFetchOrder(imgPaths.length, startIndex);
+  let orderCursor = 0;
+  let lastEmitAt = 0;
+  let hasEmittedFile = false;
+
+  function emitProgress(force: boolean): void {
+    if (!onProgress) return;
+    const now = Date.now();
+    if (!force && now - lastEmitAt < PROGRESS_EMIT_INTERVAL_MS) return;
+    lastEmitAt = now;
+    onProgress({ volume_uuid: volumeUuid, pages, files: { ...files } });
+  }
 
   async function worker(): Promise<void> {
-    while (cursor < imgPaths.length) {
-      const imgPath = imgPaths[cursor++];
+    while (orderCursor < order.length) {
+      const imgPath = imgPaths[order[orderCursor++]];
       const file = await fetchPage(volumeUuid, imgPath);
-      if (file) files[imgPath] = file;
+      if (file) {
+        files[imgPath] = file;
+        const force = !hasEmittedFile;
+        hasEmittedFile = true;
+        emitProgress(force);
+      }
     }
   }
 
   await Promise.all(
-    Array.from({ length: Math.min(PAGE_FETCH_CONCURRENCY, imgPaths.length) }, () => worker())
+    Array.from({ length: Math.min(PAGE_FETCH_CONCURRENCY, order.length) }, () => worker())
   );
 
-  return { volume_uuid: volumeUuid, pages: ocr.pages, files };
+  return { volume_uuid: volumeUuid, pages, files };
 }
 
 /**

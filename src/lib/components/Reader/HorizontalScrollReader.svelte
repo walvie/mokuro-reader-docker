@@ -569,6 +569,7 @@
                 volumeUuid={volume.volume_uuid}
                 pageIndex={i}
                 forceVisible={missingPagePaths.has(page.img_path)}
+                isMissing={missingPagePaths.has(page.img_path)}
                 {onContextMenu}
               />
             </div>
