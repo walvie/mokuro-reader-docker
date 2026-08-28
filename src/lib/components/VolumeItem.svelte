@@ -95,6 +95,11 @@
   // Check if this is an image-only volume (no mokuro OCR data)
   let isImageOnly = $derived(volume.mokuro_version === '');
 
+  // Read-only volume served by the self-hosted library-server: readable and
+  // trackable like any local volume, but there's no local row to edit,
+  // delete, export, or back up to cloud.
+  let isServerLibrary = $derived(liveVolume.isServerLibrary ?? false);
+
   // Check if this volume has missing pages (imported with placeholders)
   let missingPages = $derived(volume.missing_pages);
 
@@ -578,7 +583,9 @@
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <BackupButton {volume} class="mr-2" />
+            {#if !isServerLibrary}
+              <BackupButton {volume} class="mr-2" />
+            {/if}
             <button
               onclick={onViewTextClicked}
               class="flex items-center justify-center"
@@ -586,23 +593,25 @@
             >
               <FileLinesOutline class="z-10 text-blue-400 hover:text-blue-500" />
             </button>
-            <button
-              onclick={onExtractClicked}
-              class="flex items-center justify-center"
-              title="Extract volume"
-            >
-              <DownloadSolid class="z-10 text-gray-400 hover:text-gray-300" />
-            </button>
-            <button
-              onclick={onEditClicked}
-              class="flex items-center justify-center"
-              title="Edit volume"
-            >
-              <EditOutline class="z-10 text-gray-400 hover:text-gray-300" />
-            </button>
-            <button onclick={onDeleteClicked} class="flex items-center justify-center">
-              <TrashBinSolid class="poin z-10 text-red-400 hover:text-red-500" />
-            </button>
+            {#if !isServerLibrary}
+              <button
+                onclick={onExtractClicked}
+                class="flex items-center justify-center"
+                title="Extract volume"
+              >
+                <DownloadSolid class="z-10 text-gray-400 hover:text-gray-300" />
+              </button>
+              <button
+                onclick={onEditClicked}
+                class="flex items-center justify-center"
+                title="Edit volume"
+              >
+                <EditOutline class="z-10 text-gray-400 hover:text-gray-300" />
+              </button>
+              <button onclick={onDeleteClicked} class="flex items-center justify-center">
+                <TrashBinSolid class="poin z-10 text-red-400 hover:text-red-500" />
+              </button>
+            {/if}
             <button
               onclick={onToggleStatusClicked}
               class="flex items-center justify-center transition-colors"
@@ -646,13 +655,15 @@
         placement="bottom-end"
         bind:isOpen={menuOpen}
       >
-        <DropdownItem
-          onclick={onEditClicked}
-          class="flex w-full items-center text-gray-700 dark:text-gray-200"
-        >
-          <EditOutline class="me-2 h-5 w-5 flex-shrink-0" />
-          <span class="flex-1 text-left">Edit</span>
-        </DropdownItem>
+        {#if !isServerLibrary}
+          <DropdownItem
+            onclick={onEditClicked}
+            class="flex w-full items-center text-gray-700 dark:text-gray-200"
+          >
+            <EditOutline class="me-2 h-5 w-5 flex-shrink-0" />
+            <span class="flex-1 text-left">Edit</span>
+          </DropdownItem>
+        {/if}
         <DropdownItem
           onclick={onViewTextClicked}
           class="flex w-full items-center text-gray-700 dark:text-gray-200"
@@ -660,14 +671,16 @@
           <FileLinesOutline class="me-2 h-5 w-5 flex-shrink-0" />
           <span class="flex-1 text-left">View text</span>
         </DropdownItem>
-        <DropdownItem
-          onclick={onExtractClicked}
-          class="flex w-full items-center text-gray-700 dark:text-gray-200"
-        >
-          <DownloadSolid class="me-2 h-5 w-5 flex-shrink-0" />
-          <span class="flex-1 text-left">Extract</span>
-        </DropdownItem>
-        {#if hasAuthenticatedProvider && !isReadOnlyMode}
+        {#if !isServerLibrary}
+          <DropdownItem
+            onclick={onExtractClicked}
+            class="flex w-full items-center text-gray-700 dark:text-gray-200"
+          >
+            <DownloadSolid class="me-2 h-5 w-5 flex-shrink-0" />
+            <span class="flex-1 text-left">Extract</span>
+          </DropdownItem>
+        {/if}
+        {#if hasAuthenticatedProvider && !isReadOnlyMode && !isServerLibrary}
           {#if isCloudLoading}
             <DropdownItem class="flex w-full items-center opacity-50" disabled>
               <span class="me-2 h-5 w-5 flex-shrink-0 animate-spin">⏳</span>
@@ -704,13 +717,15 @@
             <span class="flex-1 text-left">Mark as unread</span>
           </DropdownItem>
         {/if}
-        <DropdownItem
-          onclick={onDeleteClicked}
-          class="flex w-full items-center text-red-500 hover:!text-red-500 dark:hover:!text-red-500"
-        >
-          <TrashBinSolid class="me-2 h-5 w-5 flex-shrink-0" />
-          <span class="flex-1 text-left">Delete</span>
-        </DropdownItem>
+        {#if !isServerLibrary}
+          <DropdownItem
+            onclick={onDeleteClicked}
+            class="flex w-full items-center text-red-500 hover:!text-red-500 dark:hover:!text-red-500"
+          >
+            <TrashBinSolid class="me-2 h-5 w-5 flex-shrink-0" />
+            <span class="flex-1 text-left">Delete</span>
+          </DropdownItem>
+        {/if}
       </Dropdown>
 
       <a

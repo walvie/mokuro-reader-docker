@@ -1,0 +1,25 @@
+{
+  "name": "mokuro-reader-library-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Read-only HTTP API that serves a mokuro manga library directly from a mounted host directory, for self-hosted deployments that don't want manga content copied into browser storage.",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.7"
+  }
+}

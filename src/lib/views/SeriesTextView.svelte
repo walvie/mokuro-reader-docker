@@ -2,6 +2,7 @@
   import { catalog } from '$lib/catalog';
   import { nav, routeParams } from '$lib/util/hash-router';
   import { db } from '$lib/catalog/db';
+  import { fetchServerVolumeOcr } from '$lib/catalog/server-library';
   import { getCharCount } from '$lib/util/count-chars';
   import { Button, Alert } from 'flowbite-svelte';
   import { ArrowLeftOutline, ClipboardOutline, CheckOutline } from 'flowbite-svelte-icons';
@@ -41,7 +42,9 @@
       const results = await Promise.all(
         volumes.map(async (volume) => {
           try {
-            const ocr = await db.volume_ocr.get(volume.volume_uuid);
+            const ocr = volume.isServerLibrary
+              ? await fetchServerVolumeOcr(volume.volume_uuid)
+              : await db.volume_ocr.get(volume.volume_uuid);
             if (!ocr) return null;
             // Create a minimal data object with just pages for text extraction
             const data = { volume_uuid: volume.volume_uuid, pages: ocr.pages };

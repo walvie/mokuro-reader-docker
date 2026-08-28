@@ -17,3 +17,23 @@ services:
       VITE_GDRIVE_CLIENT_ID: ${VITE_GDRIVE_CLIENT_ID:-}
       VITE_GDRIVE_API_KEY: ${VITE_GDRIVE_API_KEY:-}
       VITE_ONEDRIVE_CLIENT_ID: ${VITE_ONEDRIVE_CLIENT_ID:-}
+    depends_on:
+      - library-server
+
+  # Optional read-only server-side manga library: serves volumes directly
+  # from a mounted host directory over HTTP instead of importing them into
+  # each browser's storage. See README.md ("Self-hosted server library").
+  # Point MANGA_LIBRARY_PATH in .env at your manga folder; leave it unset
+  # and the library is simply empty (the mokuro-reader service still works
+  # normally via manual upload).
+  library-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: mokuro-reader-library-server:latest
+    container_name: mokuro-reader-library-server
+    restart: unless-stopped
+    environment:
+      LIBRARY_RESCAN_INTERVAL_MINUTES: ${LIBRARY_RESCAN_INTERVAL_MINUTES:-0}
+    volumes:
+      - ${MANGA_LIBRARY_PATH:-./library}:/library:ro

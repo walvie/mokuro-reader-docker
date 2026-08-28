@@ -21,3 +21,9 @@ vite.config.ts.timestamp-*
 # Playwright artifacts
 test-results/
 playwright-report/
+
+# library-server build output; default (empty) bind-mount target for the
+# self-hosted server library (see docker-compose.yml, MANGA_LIBRARY_PATH)
+/server/dist
+/library/*
+!/library/.gitkeep

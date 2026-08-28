@@ -11,3 +11,6 @@ coverage
 *.log
 .env
 .env.local
+# Separate build context (server/Dockerfile) and default library bind-mount target
+server
+library
