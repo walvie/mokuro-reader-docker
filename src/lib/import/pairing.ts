@@ -132,7 +132,12 @@ export async function pairMokuroWithSources(entries: FileEntry[]): Promise<Pairi
 
       if (mergedFiles.size > 0) {
         pairedMokuroPaths.add(mokuro.path);
-        pairings.push(createDirectoryPairing(mokuroStem, mergedFiles, mokuro.file, false));
+        // basePath must be the full path (including mokuro's parent dir), not just
+        // the stem: for archive sources this is reused downstream as the extraction
+        // path prefix, which has to match the images' actual location inside the
+        // zip (e.g. "Houseki no Kuni/Volume 02", not just "Volume 02").
+        const basePath = mokuroParent === '.' ? mokuroStem : mokuroParent + '/' + mokuroStem;
+        pairings.push(createDirectoryPairing(basePath, mergedFiles, mokuro.file, false));
       }
     }
   }

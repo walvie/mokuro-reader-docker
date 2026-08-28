@@ -7,8 +7,13 @@ import { unifiedCloudManager } from '$lib/util/sync/unified-cloud-manager';
 import { generatePlaceholders } from '$lib/catalog/placeholders';
 import { routeParams } from '$lib/util/hash-router';
 import { getLegacyImageOnlyVolumeUuid } from '$lib/util/download-volume-repair';
+import { serverLibraryVolumes, loadServerVolumeData } from '$lib/catalog/server-library';
 
 async function loadCurrentVolumeData(volume: VolumeMetadata): Promise<VolumeData | undefined> {
+  if (volume.isServerLibrary) {
+    return loadServerVolumeData(volume.volume_uuid);
+  }
+
   let [ocr, files] = await Promise.all([
     db.volume_ocr.get(volume.volume_uuid),
     db.volume_files.get(volume.volume_uuid)
@@ -74,11 +79,11 @@ export const volumes = readable<Record<string, VolumeMetadata>>({}, (set) => {
   return () => subscription.unsubscribe();
 });
 
-// Merge local volumes with cloud placeholders
+// Merge local volumes with cloud placeholders and the self-hosted server library
 export const volumesWithPlaceholders = derived(
-  [volumes, unifiedCloudManager.cloudFiles],
-  ([$volumes, $cloudFiles]) => {
-    const combined = { ...$volumes };
+  [volumes, unifiedCloudManager.cloudFiles, serverLibraryVolumes],
+  ([$volumes, $cloudFiles, $serverLibraryVolumes]) => {
+    const combined = { ...$volumes, ...$serverLibraryVolumes };
     const localVolumes = Object.values($volumes);
 
     // Generate cloud provider placeholders
@@ -118,12 +123,18 @@ export const currentSeries = derived([routeParams, catalog], ([$routeParams, $ca
   return series?.volumes || [];
 });
 
-export const currentVolume = derived([routeParams, volumes], ([$routeParams, $volumes]) => {
-  if ($routeParams && $volumes && $routeParams.volume) {
-    return $volumes[$routeParams.volume]; // Direct lookup instead of find()
+// Deliberately excludes cloud placeholders (an undownloaded cloud volume
+// isn't openable until it's downloaded), but includes the server library:
+// those volumes ARE fully readable right now, just not via Dexie.
+export const currentVolume = derived(
+  [routeParams, volumes, serverLibraryVolumes],
+  ([$routeParams, $volumes, $serverLibraryVolumes]) => {
+    if ($routeParams && $routeParams.volume) {
+      return $volumes[$routeParams.volume] ?? $serverLibraryVolumes[$routeParams.volume];
+    }
+    return undefined;
   }
-  return undefined;
-});
+);
 
 export const currentVolumeData: Readable<VolumeData | undefined> = derived(
   [currentVolume],

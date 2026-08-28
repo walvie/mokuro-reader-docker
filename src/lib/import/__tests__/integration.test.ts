@@ -67,6 +67,7 @@ vi.mock('$lib/catalog/db', () => ({
       }),
       get: vi.fn()
     },
+    processThumbnails: vi.fn().mockResolvedValue(undefined),
     transaction: vi
       .fn()
       .mockImplementation(
@@ -127,6 +128,7 @@ vi.mock('$lib/util/file-processing-pool', () => ({
 // Import after mocks are set up
 import { importFiles, importQueue, isImporting, clearCompletedImports } from '../import-service';
 import { showSnackbar } from '$lib/util/snackbar';
+import { BlobWriter, ZipWriter, TextReader, Uint8ArrayReader } from '@zip.js/zip.js';
 
 // ============================================
 // TEST HELPERS
@@ -576,6 +578,87 @@ describe('importFiles with exported format archives', () => {
     await waitForImportsToComplete();
     expect(savedVolumes).toHaveLength(1);
     expect(savedVolumes[0].metadata.mokuro_version).toBe('');
+  });
+});
+
+describe('importFiles with a nested top-level folder in the archive (real-world zip)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    savedVolumes.length = 0;
+    importQueue.set([]);
+  });
+
+  afterEach(async () => {
+    clearCompletedImports();
+    await waitForImportsToComplete();
+  });
+
+  // Reproduces a real mokuro output directory zipped up as-is, e.g. zipping a
+  // folder named "Houseki no Kuni" that contains:
+  //   _ocr/               (mokuro's own OCR cache, irrelevant to import)
+  //   Volume 02/*.webp    (page images)
+  //   Volume 02.html
+  //   Volume 02.mokuro    (external mokuro, sibling to the image folder)
+  // Every zip entry therefore has a "Houseki no Kuni/" prefix, unlike the
+  // other exported-format fixtures where the mokuro file sits at the zip root.
+  it('imports a volume whose external mokuro is nested inside a wrapper folder', async () => {
+    const blobWriter = new BlobWriter('application/zip');
+    const zipWriter = new ZipWriter(blobWriter);
+
+    const mokuroJson = JSON.stringify({
+      version: '0.2.0',
+      title: 'Houseki no Kuni',
+      title_uuid: 'houseki-title-uuid',
+      volume: 'Volume 02',
+      volume_uuid: 'houseki-volume-02-uuid',
+      pages: [
+        { img_path: '0001.webp', img_width: 100, img_height: 100, blocks: [] },
+        { img_path: '0002.webp', img_width: 100, img_height: 100, blocks: [] }
+      ],
+      chars: 0
+    });
+
+    await zipWriter.add(
+      'Houseki no Kuni/_ocr/Volume 02/0001.json',
+      new TextReader('{}')
+    );
+    await zipWriter.add(
+      'Houseki no Kuni/Volume 02/0001.webp',
+      new Uint8ArrayReader(new Uint8Array([1, 2, 3]))
+    );
+    await zipWriter.add(
+      'Houseki no Kuni/Volume 02/0002.webp',
+      new Uint8ArrayReader(new Uint8Array([4, 5, 6]))
+    );
+    await zipWriter.add('Houseki no Kuni/Volume 02.html', new TextReader('<html></html>'));
+    await zipWriter.add('Houseki no Kuni/Volume 02.mokuro', new TextReader(mokuroJson));
+
+    await zipWriter.close();
+    const blob = await blobWriter.getData();
+    // Go through ArrayBuffer rather than passing the Blob straight to File():
+    // jsdom's Blob/File interop silently truncates content otherwise (see
+    // fixture-loader.ts, which does the same for the same reason).
+    const arrayBuffer = await blob.arrayBuffer();
+    const zipFile = new File([arrayBuffer], 'Houseki no Kuni.zip', { type: 'application/zip' });
+
+    const result = await importFiles([zipFile]);
+
+    expect(result.success).toBe(true);
+    expect(result.imported).toBe(1);
+    await waitForImportsToComplete();
+    expect(savedVolumes).toHaveLength(1);
+
+    // The bug: images live at "Houseki no Kuni/Volume 02/*.webp" in the zip,
+    // but the pairing/extraction path prefix was truncated to "Volume 02",
+    // so none of the real image bytes were ever extracted and every page
+    // was silently replaced with a placeholder "File Missing" image.
+    expect(savedVolumes[0].metadata.missing_pages).toBeUndefined();
+
+    const savedFiles = Object.values(savedVolumes[0].files.files);
+    expect(savedFiles).toHaveLength(2);
+    for (const file of savedFiles as File[]) {
+      expect(file.size).toBeGreaterThan(0);
+    }
   });
 });
 

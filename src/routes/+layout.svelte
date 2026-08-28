@@ -26,6 +26,7 @@
   import { navigateBack, currentView } from '$lib/util/hash-router';
   import { checkMigrationNeeded } from '$lib/catalog/migration';
   import { startThumbnailProcessing } from '$lib/catalog/db';
+  import { initServerLibrary } from '$lib/catalog/server-library';
   import { get } from 'svelte/store';
 
   // Migration state
@@ -83,6 +84,9 @@
 
     // Start background thumbnail generation once startup checks are complete
     startThumbnailProcessing();
+
+    // Load the self-hosted server library, if configured (no-op otherwise)
+    initServerLibrary();
 
     // Fire and forget - don't block app initialization
     initializeProviders().catch((error) => {

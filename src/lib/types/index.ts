@@ -43,6 +43,14 @@ export interface VolumeMetadata {
   // Placeholder fields for cloud-only volumes (not yet downloaded locally)
   isPlaceholder?: boolean;
 
+  // Read-only volume served directly by the self-hosted library-server
+  // (see src/lib/catalog/server-library.ts) from a mounted host directory.
+  // Unlike isPlaceholder, this volume IS fully readable right now — its
+  // page data and images are just fetched over HTTP instead of coming from
+  // IndexedDB. Editing/renaming/exporting are unavailable since there's no
+  // local row to mutate.
+  isServerLibrary?: boolean;
+
   // Generic cloud storage fields (new multi-provider format)
   cloudProvider?: ProviderType;
   cloudFileId?: string;

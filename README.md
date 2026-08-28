@@ -198,9 +198,12 @@ option is hidden. MEGA, WebDAV, and Local Folder need no configuration.
 
 ## 🐳 Self-Hosting with Docker
 
-Mokuro Reader is a fully client-side app (all data lives in your browser's
-IndexedDB), so self-hosting just means serving the static build — the
-included `Dockerfile` builds it and serves it with nginx.
+Mokuro Reader is a fully client-side app (by default, all data lives in your
+browser's IndexedDB), so self-hosting mostly just means serving the static
+build — the included `Dockerfile` builds it and serves it with nginx. An
+optional second service can also serve a manga library straight from a
+mounted folder on the host, without importing anything into the browser —
+see [Self-hosted server library](#-self-hosted-server-library) below.
 
 ```bash
 git clone https://github.com/Gnathonic/mokuro-reader
@@ -222,6 +225,50 @@ docker compose up -d
 
 These are applied when the container starts (via `docker/docker-entrypoint.sh`),
 so changing `.env` and restarting is enough — no image rebuild required.
+
+### 📚 Self-hosted server library
+
+If your manga collection already lives on the server (a NAS, a home server,
+etc.), you don't have to upload it into every browser's storage. A second
+Docker service, `library-server`, can serve the collection directly from a
+mounted host folder — the reader fetches pages over HTTP on demand, and
+nothing is copied into IndexedDB.
+
+```bash
+cp .env.example .env
+# edit .env: set MANGA_LIBRARY_PATH to an absolute host path, e.g.
+#   MANGA_LIBRARY_PATH=/mnt/storage/manga
+docker compose up -d --build
+```
+
+Volumes appear in the catalog alongside anything you've imported normally,
+marked read-only (no edit/delete/export — there's no local copy to change).
+Progress, settings, and stats work exactly as they do for any other volume,
+since those are already stored in your browser regardless of where a
+volume's pages come from.
+
+**Supported layout**: any folder structure the normal drag-and-drop import
+already understands — `Series/Volume.mokuro` + `Series/Volume/` images,
+mokuro sitting inside the image folder, nested series directories, TOC-style
+chapter subfolders, or plain image-only folders with no `.mokuro` at all.
+Unlike normal import, the library server only reads already-extracted
+directories — `.zip`/`.cbz` archives placed directly in the library are not
+opened.
+
+**Picking up new manga**: the library is scanned once at container startup.
+After adding or removing files, either restart the service —
+`docker compose restart library-server` — or trigger a rescan without a
+restart:
+
+```bash
+curl -X POST http://localhost:8080/api/rescan
+```
+
+Set `LIBRARY_RESCAN_INTERVAL_MINUTES` in `.env` to have it rescan
+automatically on a schedule instead.
+
+Leave `MANGA_LIBRARY_PATH` unset and this service just serves an empty
+library — everything else works normally.
 
 ## 💬 Community
 
