@@ -1,0 +1,19 @@
+services:
+  mokuro-reader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mokuro-reader:latest
+    container_name: mokuro-reader
+    restart: unless-stopped
+    ports:
+      - '${PORT:-8080}:80'
+    environment:
+      # Optional cloud-sync credentials. All are public OAuth client
+      # identifiers (not secrets) that the browser needs to talk to each
+      # provider directly; leave unset to hide that provider. See README.md
+      # for how to obtain them. Applied at container start, no rebuild
+      # needed when you change them.
+      VITE_GDRIVE_CLIENT_ID: ${VITE_GDRIVE_CLIENT_ID:-}
+      VITE_GDRIVE_API_KEY: ${VITE_GDRIVE_API_KEY:-}
+      VITE_ONEDRIVE_CLIENT_ID: ${VITE_ONEDRIVE_CLIENT_ID:-}

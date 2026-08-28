@@ -1,0 +1,13 @@
+node_modules
+build
+.svelte-kit
+.git
+.github
+e2e
+docs
+test-results
+playwright-report
+coverage
+*.log
+.env
+.env.local
