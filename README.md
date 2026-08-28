@@ -270,6 +270,48 @@ automatically on a schedule instead.
 Leave `MANGA_LIBRARY_PATH` unset and this service just serves an empty
 library — everything else works normally.
 
+### 🔍 Mokuro processing
+
+A third Docker service, `mokuro-worker`, runs [mokuro](https://github.com/kha-white/mokuro)
+(the OCR tool that generates the `.mokuro` files this whole app is built
+around) directly against your server library, so raw scans can go straight
+from disk to readable without leaving the machine.
+
+Open **Catalog settings → Mokuro processing** (only relevant once you have a
+server library configured — see above) to see every server-library volume
+with no OCR data yet, with a "Process" button per volume and a "Process all"
+button for the whole backlog. Jobs run **one at a time** (OCR is CPU/memory
+heavy) with a live progress bar, and a volume automatically reappears as a
+normal, readable volume in the catalog as soon as its job finishes — no
+manual rescan needed.
+
+**This deployment is CPU-only.** There's no GPU passthrough configured, so
+expect OCR to be noticeably slower than a GPU-accelerated run; if your
+server has a GPU you want mokuro to use instead, you'll need to adjust
+`mokuro-worker/Dockerfile` (swap the CPU-only PyTorch install for a CUDA
+build) and add GPU passthrough to its `docker-compose.yml` service yourself
+(`nvidia-container-toolkit` + a `deploy.resources.reservations.devices`
+block) — not something this setup does out of the box.
+
+**First build is slow** (installing PyTorch and mokuro's other dependencies
+into the image), and **first use downloads the OCR model** from Hugging
+Face — a few hundred MB, cached in a named Docker volume
+(`mokuro_model_cache`) so it's only fetched once, not on every restart.
+
+Output lands exactly where running mokuro by hand would put it — a
+`<Volume>.mokuro` file and an `_ocr/<Volume>/` cache directory, both
+alongside your source images — since `mokuro-worker` mounts the library
+read-write for this reason (`library-server`, which only ever reads, stays
+read-only regardless).
+
+One caveat worth knowing: this integration was built and tested without a
+real mokuro/PyTorch install available in the dev environment (the job
+queue, progress tracking, and API are thoroughly tested against a fake
+mokuro process standing in for the real one) — the actual `python -m
+mokuro` invocation was verified against mokuro's published source rather
+than a live run. Keep an eye on the job log (expand "Show log" on a failed
+job) the first time you process something for real.
+
 ## 💬 Community
 
 Wanna chat with the devs? Share your hopes, dreams, and issues (with Mokuro Reader specifically)? Come join the [Mokuro Reader Discord](https://discord.gg/AU5pjjSQBw)!

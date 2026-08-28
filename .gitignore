@@ -27,3 +27,9 @@ playwright-report/
 /server/dist
 /library/*
 !/library/.gitkeep
+
+# mokuro-worker Python artifacts
+mokuro-worker/__pycache__/
+mokuro-worker/**/__pycache__/
+mokuro-worker/.pytest_cache/
+*.pyc

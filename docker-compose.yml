@@ -19,6 +19,7 @@ services:
       VITE_ONEDRIVE_CLIENT_ID: ${VITE_ONEDRIVE_CLIENT_ID:-}
     depends_on:
       - library-server
+      - mokuro-worker
 
   # Optional read-only server-side manga library: serves volumes directly
   # from a mounted host directory over HTTP instead of importing them into
@@ -37,3 +38,28 @@ services:
       LIBRARY_RESCAN_INTERVAL_MINUTES: ${LIBRARY_RESCAN_INTERVAL_MINUTES:-0}
     volumes:
       - ${MANGA_LIBRARY_PATH:-./library}:/library:ro
+
+  # Runs mokuro (OCR) against volumes in the server library that don't have
+  # it yet — see README.md ("Mokuro processing"). Unlike library-server, this
+  # mounts the library READ-WRITE (it has to: mokuro writes .mokuro files and
+  # an _ocr cache alongside your images) and is CPU-only by default. First
+  # build is slow (installs PyTorch + the OCR model's dependencies); first
+  # use downloads the OCR model itself, cached in the mokuro_model_cache
+  # volume so it isn't re-downloaded on every restart.
+  mokuro-worker:
+    build:
+      context: ./mokuro-worker
+      dockerfile: Dockerfile
+    image: mokuro-reader-mokuro-worker:latest
+    container_name: mokuro-reader-mokuro-worker
+    restart: unless-stopped
+    environment:
+      LIBRARY_SERVER_URL: http://library-server:3300
+    volumes:
+      - ${MANGA_LIBRARY_PATH:-./library}:/library
+      - mokuro_model_cache:/root/.cache/huggingface
+    depends_on:
+      - library-server
+
+volumes:
+  mokuro_model_cache:

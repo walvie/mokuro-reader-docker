@@ -57,6 +57,7 @@ describe('scanLibrary', () => {
     expect(volume).toBeDefined();
     expect(volume!.seriesTitle).toBe('Houseki no Kuni');
     expect(volume!.volumeTitle).toBe('Volume 02');
+    expect(volume!.libraryPath).toBe('Houseki no Kuni/Volume 02');
     expect(volume!.missingPages).toBe(0);
     expect(volume!.imageFiles.size).toBe(2);
     expect(volume!.imageFiles.get('0001.webp')).toBe(
@@ -88,6 +89,7 @@ describe('scanLibrary', () => {
     const [volume] = Array.from(index.volumes.values());
     expect(volume.mokuroVersion).toBe('');
     expect(volume.pageCount).toBe(2);
+    expect(volume.libraryPath).toBe('Some Series/Volume 01');
     expect(volume.imageFiles.get('001.jpg')).toBe(
       path.join(root, 'Some Series/Volume 01/001.jpg')
     );

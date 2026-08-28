@@ -261,6 +261,9 @@
 
     <div class="flex flex-col gap-2">
       <Button onclick={() => nav.toMergeSeries()} outline color="blue">Merge series</Button>
+      <Button onclick={() => nav.toMokuroProcessing()} outline color="blue">
+        Mokuro processing
+      </Button>
       <Button onclick={onRescanServerLibrary} outline color="blue" disabled={isRescanning}>
         {isRescanning ? 'Refreshing…' : 'Refresh server library'}
       </Button>

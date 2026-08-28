@@ -48,6 +48,7 @@ describe('server-library', () => {
         series_uuid: 's1',
         series_title: 'Houseki no Kuni',
         volume_title: 'Volume 02',
+        library_path: 'Houseki no Kuni/Volume 02',
         mokuro_version: '0.2.0',
         page_count: 2,
         character_count: 10,
@@ -63,7 +64,8 @@ describe('server-library', () => {
         volume_uuid: 'v1',
         series_title: 'Houseki no Kuni',
         volume_title: 'Volume 02',
-        isServerLibrary: true
+        isServerLibrary: true,
+        serverLibraryPath: 'Houseki no Kuni/Volume 02'
       });
     });
 
@@ -89,6 +91,7 @@ describe('server-library', () => {
         series_uuid: 's2',
         series_title: 'Series',
         volume_title: 'Volume 01',
+        library_path: 'Series/Volume 01',
         mokuro_version: '0.2.0',
         page_count: 1,
         character_count: 0,
@@ -198,6 +201,7 @@ describe('server-library', () => {
                 series_uuid: 's3',
                 series_title: 'Series',
                 volume_title: 'Volume 01',
+                library_path: 'Series/Volume 01',
                 mokuro_version: '0.2.0',
                 page_count: 1,
                 character_count: 0,

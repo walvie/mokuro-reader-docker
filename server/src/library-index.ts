@@ -23,6 +23,8 @@ export interface VolumeIndexEntry {
   seriesUuid: string;
   seriesTitle: string;
   volumeTitle: string;
+  /** Path to this volume's image folder, relative to the library root (e.g. "Series/Volume 02") */
+  libraryPath: string;
   /** '' for image-only volumes (no .mokuro file found) */
   mokuroVersion: string;
   pageCount: number;

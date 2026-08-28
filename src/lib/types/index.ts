@@ -50,6 +50,10 @@ export interface VolumeMetadata {
   // IndexedDB. Editing/renaming/exporting are unavailable since there's no
   // local row to mutate.
   isServerLibrary?: boolean;
+  // Path to this volume's image folder relative to the server library root
+  // (only set when isServerLibrary is true). Used to tell mokuro-worker
+  // which folder to process — see src/lib/views/MokuroProcessingView.svelte.
+  serverLibraryPath?: string;
 
   // Generic cloud storage fields (new multi-provider format)
   cloudProvider?: ProviderType;

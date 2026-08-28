@@ -17,7 +17,8 @@ export type View =
   | { type: 'cloud' }
   | { type: 'upload' }
   | { type: 'reading-speed' }
-  | { type: 'merge-series' };
+  | { type: 'merge-series' }
+  | { type: 'mokuro-processing' };
 
 function getInitialView(): View {
   if (typeof window !== 'undefined') {
@@ -45,6 +46,7 @@ export function parseHash(hash: string): View {
     if (segments[0] === 'upload') return { type: 'upload' };
     if (segments[0] === 'reading-speed') return { type: 'reading-speed' };
     if (segments[0] === 'merge-series') return { type: 'merge-series' };
+    if (segments[0] === 'mokuro-processing') return { type: 'mokuro-processing' };
     // Removed libraries feature: send stale bookmarks to the catalog
     if (segments[0] === 'libraries' || segments[0] === 'add-library') return { type: 'catalog' };
 
@@ -93,6 +95,8 @@ export function viewToHash(view: View): string {
       return '#/reading-speed';
     case 'merge-series':
       return '#/merge-series';
+    case 'mokuro-processing':
+      return '#/mokuro-processing';
   }
 }
 
@@ -152,7 +156,11 @@ export const nav = {
   toReadingSpeed: (options?: NavigateOptions) => navigate({ type: 'reading-speed' }, options),
 
   /** Navigate to merge series page */
-  toMergeSeries: (options?: NavigateOptions) => navigate({ type: 'merge-series' }, options)
+  toMergeSeries: (options?: NavigateOptions) => navigate({ type: 'merge-series' }, options),
+
+  /** Navigate to mokuro processing page */
+  toMokuroProcessing: (options?: NavigateOptions) =>
+    navigate({ type: 'mokuro-processing' }, options)
 };
 
 /**
@@ -190,6 +198,7 @@ export function navigateBack(): void {
     case 'reading-speed':
     case 'upload':
     case 'merge-series':
+    case 'mokuro-processing':
       nav.toCatalog();
       break;
     case 'catalog':
