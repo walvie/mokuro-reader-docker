@@ -28,10 +28,18 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
-# CPU-only PyTorch first, from its dedicated index, so the much larger
-# default (CUDA-enabled) build is never pulled in — mokuro's own torch
-# dependency is then satisfied by this already-installed version.
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+# CPU-only PyTorch, from its dedicated index, so the much larger default
+# (CUDA-enabled) build is never pulled in. torch and torchvision MUST be
+# installed together in this one command: torchvision ships compiled ops
+# (e.g. torchvision::nms) built against one specific torch build, and pip
+# has no way to know that when resolving them separately — installing torch
+# here and letting mokuro's own (loose, unpinned) torchvision>=0.8.1
+# requirement resolve independently later picked a mismatched pair and
+# failed at import time with "operator torchvision::nms does not exist".
+# Resolving both from the same CPU index in one pip invocation is how
+# PyTorch's own install instructions do it, and is the only way pip
+# guarantees a compatible pair.
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
