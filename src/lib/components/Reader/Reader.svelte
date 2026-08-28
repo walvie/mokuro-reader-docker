@@ -1232,6 +1232,7 @@
                     volumeUuid={volume.volume_uuid}
                     pageIndex={index + 1}
                     forceVisible={missingPagePaths.has(pages[index + 1]?.img_path)}
+                    isMissing={missingPagePaths.has(pages[index + 1]?.img_path)}
                     onContextMenu={handleTextBoxContextMenu}
                   />
                 {/if}
@@ -1242,6 +1243,7 @@
                   volumeUuid={volume.volume_uuid}
                   pageIndex={index}
                   forceVisible={missingPagePaths.has(pages[index]?.img_path)}
+                  isMissing={missingPagePaths.has(pages[index]?.img_path)}
                   onContextMenu={handleTextBoxContextMenu}
                 />
               {:else}

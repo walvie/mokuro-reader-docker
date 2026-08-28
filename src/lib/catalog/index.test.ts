@@ -18,19 +18,28 @@ vi.mock('$lib/util/sync/unified-cloud-manager', () => ({
 }));
 
 const serverLibraryVolumesStore = writable<Record<string, VolumeMetadata>>({});
-const loadServerVolumeData = vi.fn<(uuid: string) => Promise<VolumeData | undefined>>();
+const loadServerVolumeData =
+  vi.fn<
+    (
+      uuid: string,
+      onProgress?: (partial: VolumeData) => void,
+      startIndex?: number
+    ) => Promise<VolumeData | undefined>
+  >();
 
 vi.mock('$lib/catalog/server-library', () => ({
   serverLibraryVolumes: serverLibraryVolumesStore,
-  loadServerVolumeData: (uuid: string) => loadServerVolumeData(uuid)
+  loadServerVolumeData: (
+    uuid: string,
+    onProgress?: (partial: VolumeData) => void,
+    startIndex?: number
+  ) => loadServerVolumeData(uuid, onProgress, startIndex)
 }));
 
 // Imported after mocks are set up
-const {
-  currentVolumeData,
-  currentVolumeDataLoading,
-  currentVolumeDataError
-} = await import('./index');
+const { currentVolumeData, currentVolumeDataLoading, currentVolumeDataError } = await import(
+  './index'
+);
 
 function serverVolume(uuid: string): VolumeMetadata {
   return {
@@ -147,6 +156,77 @@ describe('currentVolumeData (server-library volumes)', () => {
 
     await vi.waitFor(() => expect(get(currentVolumeData)?.volume_uuid).toBe('v5'));
     expect(loadServerVolumeData).toHaveBeenCalledTimes(2);
+
+    unsub();
+  });
+
+  it('shows partial data via onProgress and clears loading as soon as the first partial arrives', async () => {
+    let emitProgress!: (partial: VolumeData) => void;
+    let resolveLoad!: (data: VolumeData) => void;
+    loadServerVolumeData.mockImplementation((_uuid, onProgress) => {
+      emitProgress = onProgress!;
+      return new Promise((resolve) => {
+        resolveLoad = resolve;
+      });
+    });
+    serverLibraryVolumesStore.set({ v6: serverVolume('v6') });
+
+    const unsub = currentVolumeData.subscribe(() => {});
+    goToReader('v6');
+    await Promise.resolve();
+    expect(get(currentVolumeDataLoading)).toBe(true);
+
+    // First progress emission: page structure known, no images yet — the
+    // reader should be able to mount instead of waiting on "loading".
+    emitProgress({ volume_uuid: 'v6', pages: [], files: {} });
+    await Promise.resolve();
+    expect(get(currentVolumeDataLoading)).toBe(false);
+    expect(get(currentVolumeData)).toEqual({ volume_uuid: 'v6', pages: [], files: {} });
+
+    // Second progress emission: an image has streamed in.
+    const file = new File([], '0001.webp');
+    emitProgress({ volume_uuid: 'v6', pages: [], files: { '0001.webp': file } });
+    await Promise.resolve();
+    expect(get(currentVolumeData)?.files).toEqual({ '0001.webp': file });
+
+    // Final resolution carries the complete set.
+    const file2 = new File([], '0002.webp');
+    resolveLoad({ volume_uuid: 'v6', pages: [], files: { '0001.webp': file, '0002.webp': file2 } });
+    await vi.waitFor(() => {
+      expect(Object.keys(get(currentVolumeData)!.files!).sort()).toEqual([
+        '0001.webp',
+        '0002.webp'
+      ]);
+    });
+
+    unsub();
+  });
+
+  it('ignores a stale onProgress emission from a volume the user has since navigated away from', async () => {
+    let emitV7!: (partial: VolumeData) => void;
+    loadServerVolumeData.mockImplementation((uuid, onProgress) => {
+      if (uuid === 'v7') emitV7 = onProgress!;
+      // Neither volume's load ever resolves — only progress emissions matter here.
+      return new Promise<VolumeData | undefined>(() => {});
+    });
+    serverLibraryVolumesStore.set({ v7: serverVolume('v7'), v8: serverVolume('v8') });
+
+    const unsub = currentVolumeData.subscribe(() => {});
+    goToReader('v7');
+    await Promise.resolve();
+
+    goToReader('v8');
+    await Promise.resolve();
+    // Navigating away clears data synchronously.
+    expect(get(currentVolumeData)).toBeUndefined();
+
+    // A progress emission for the volume we left should be ignored, not
+    // resurrect stale data or clear loading for the volume we're now on.
+    emitV7({ volume_uuid: 'v7', pages: [], files: {} });
+    await Promise.resolve();
+
+    expect(get(currentVolumeData)).toBeUndefined();
+    expect(get(currentVolumeDataLoading)).toBe(true);
 
     unsub();
   });

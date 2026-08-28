@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Page } from '$lib/types';
   import TextBoxes from './TextBoxes.svelte';
+  import { Spinner } from 'flowbite-svelte';
 
   interface ContextMenuData {
     x: number;
@@ -19,6 +20,13 @@
     pageIndex?: number;
     /** Force text visibility (for placeholder/missing pages) */
     forceVisible?: boolean;
+    /**
+     * True when this page is known to be permanently unavailable (e.g. a
+     * corrupt/missing source image on a server-library volume). Suppresses
+     * the streaming-in loading indicator below, which would otherwise spin
+     * forever for a page whose image is never coming.
+     */
+    isMissing?: boolean;
     /** Callback when context menu should be shown */
     onContextMenu?: (data: ContextMenuData) => void;
   }
@@ -30,6 +38,7 @@
     volumeUuid,
     pageIndex,
     forceVisible = false,
+    isMissing = false,
     onContextMenu
   }: Props = $props();
 
@@ -58,6 +67,11 @@
       }
     };
   });
+
+  // No image yet, but one is still expected (e.g. a server-library volume
+  // whose pages are streaming in over HTTP) — distinct from isMissing, where
+  // no image is ever coming and a spinner would just spin forever.
+  let showLoading = $derived(!url && !isMissing);
 </script>
 
 <div
@@ -71,6 +85,11 @@
   style:background-position="center"
   class="relative"
 >
+  {#if showLoading}
+    <div class="absolute inset-0 flex items-center justify-center" data-testid="page-loading">
+      <Spinner size="8" color="blue" />
+    </div>
+  {/if}
   <TextBoxes
     {page}
     src={src ?? undefined}

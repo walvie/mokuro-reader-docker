@@ -1,17 +1,27 @@
 import { db } from '$lib/catalog/db';
 import type { VolumeData, VolumeMetadata } from '$lib/types';
 import { liveQuery } from 'dexie';
-import { derived, readable, writable, type Readable } from 'svelte/store';
+import { derived, get, readable, writable, type Readable } from 'svelte/store';
 import { deriveSeriesFromVolumes } from '$lib/catalog/catalog';
 import { unifiedCloudManager } from '$lib/util/sync/unified-cloud-manager';
 import { generatePlaceholders } from '$lib/catalog/placeholders';
 import { routeParams } from '$lib/util/hash-router';
 import { getLegacyImageOnlyVolumeUuid } from '$lib/util/download-volume-repair';
 import { serverLibraryVolumes, loadServerVolumeData } from '$lib/catalog/server-library';
+import { progress as readingProgress } from '$lib/settings/volume-data';
 
-async function loadCurrentVolumeData(volume: VolumeMetadata): Promise<VolumeData | undefined> {
+async function loadCurrentVolumeData(
+  volume: VolumeMetadata,
+  onProgress?: (partial: VolumeData) => void
+): Promise<VolumeData | undefined> {
   if (volume.isServerLibrary) {
-    return loadServerVolumeData(volume.volume_uuid);
+    // Resume where the reader last left off: prioritize fetching that page
+    // (and its neighbors) first instead of the volume's page order, so a
+    // reader reopening partway through a volume doesn't wait on unrelated
+    // earlier pages before seeing the one they actually landed on.
+    const savedPage = get(readingProgress)[volume.volume_uuid];
+    const startIndex = savedPage ? savedPage - 1 : 0;
+    return loadServerVolumeData(volume.volume_uuid, onProgress, startIndex);
   }
 
   let [ocr, files] = await Promise.all([
@@ -169,7 +179,17 @@ export const currentVolumeData: Readable<VolumeData | undefined> = derived(
 
     if ($currentVolume) {
       currentVolumeDataLoadingStore.set(true);
-      loadCurrentVolumeData($currentVolume)
+      loadCurrentVolumeData($currentVolume, (partial) => {
+        // Ignore a stale progress emission from a navigation the user has
+        // since left (e.g. a server-library fetch still streaming in the
+        // background for a volume that's no longer current).
+        if (newUuid !== currentVolumeDataLastUuid) return;
+        set(partial);
+        // Page structure (and possibly the first image) is available now —
+        // let the reader mount instead of showing "loading" until every
+        // page has been fetched.
+        currentVolumeDataLoadingStore.set(false);
+      })
         .then((volumeData) => {
           // Ignore a stale result from a navigation the user has since left
           if (newUuid !== currentVolumeDataLastUuid) return;

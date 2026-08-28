@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { get } from 'svelte/store';
+import type { VolumeData } from '$lib/types';
 
 vi.mock('$lib/catalog/thumbnails', () => ({
   generateThumbnail: vi.fn().mockResolvedValue({
@@ -165,6 +166,64 @@ describe('server-library', () => {
       const data = await loadServerVolumeData('v1');
       expect(data).toBeDefined();
       expect(data!.files).toEqual({});
+    });
+
+    it('invokes onProgress with page structure (and no files) before any image has arrived', async () => {
+      const mockFetch = fetch as unknown as ReturnType<typeof vi.fn>;
+      const pages = [
+        { img_path: '0001.webp', img_width: 10, img_height: 10, blocks: [] },
+        { img_path: '0002.webp', img_width: 10, img_height: 10, blocks: [] }
+      ];
+      mockFetch.mockImplementation((url: string) => {
+        if (url === '/api/volumes/v1') {
+          return Promise.resolve(jsonResponse({ volume_uuid: 'v1', pages }));
+        }
+        return Promise.resolve(jsonResponse({}));
+      });
+
+      const emissions: VolumeData[] = [];
+      const data = await loadServerVolumeData('v1', (partial) => emissions.push(partial));
+
+      expect(emissions.length).toBeGreaterThan(0);
+      expect(emissions[0].files).toEqual({});
+      // Later onProgress emissions are time-throttled (see
+      // PROGRESS_EMIT_INTERVAL_MS), so the LAST emission isn't guaranteed to
+      // carry every image — but the resolved promise always does, once every
+      // page has been attempted.
+      expect(Object.keys(data!.files!).sort()).toEqual(['0001.webp', '0002.webp']);
+    });
+
+    it('fetches pages starting at startIndex and expanding outward, not in front-to-back order', async () => {
+      const mockFetch = fetch as unknown as ReturnType<typeof vi.fn>;
+      // More pages than PAGE_FETCH_CONCURRENCY (6) so the initial dispatch
+      // order is bounded by the priority queue, not just "everything at once".
+      const pages = Array.from({ length: 10 }, (_, i) => ({
+        img_path: `${i}.webp`,
+        img_width: 10,
+        img_height: 10,
+        blocks: []
+      }));
+      const pageFetchOrder: string[] = [];
+      mockFetch.mockImplementation((url: string) => {
+        if (url === '/api/volumes/v1') {
+          return Promise.resolve(jsonResponse({ volume_uuid: 'v1', pages }));
+        }
+        pageFetchOrder.push(url);
+        return Promise.resolve(jsonResponse({}));
+      });
+
+      await loadServerVolumeData('v1', undefined, /* startIndex */ 6);
+
+      // buildFetchOrder(10, 6): 6, 7, 5, 8, 4, 9, 3, 2, 1, 0
+      // Only the first PAGE_FETCH_CONCURRENCY (6) are dispatched up front.
+      expect(pageFetchOrder.slice(0, 6)).toEqual([
+        '/api/volumes/v1/pages/6.webp',
+        '/api/volumes/v1/pages/7.webp',
+        '/api/volumes/v1/pages/5.webp',
+        '/api/volumes/v1/pages/8.webp',
+        '/api/volumes/v1/pages/4.webp',
+        '/api/volumes/v1/pages/9.webp'
+      ]);
     });
   });
 
