@@ -2,7 +2,13 @@
   import { run } from 'svelte/legacy';
   import type { TransitionConfig } from 'svelte/transition';
 
-  import { currentSeries, currentVolume, currentVolumeData } from '$lib/catalog';
+  import {
+    currentSeries,
+    currentVolume,
+    currentVolumeData,
+    currentVolumeDataLoading,
+    currentVolumeDataError
+  } from '$lib/catalog';
   import PagedViewport from './PagedViewport.svelte';
   import { pagedZoom } from '$lib/reader/paged-zoom';
   import { spreadContentSize } from '$lib/reader/paged-zoom-layout';
@@ -69,6 +75,8 @@
 
   let volume = $derived($currentVolume);
   let volumeData = $derived($currentVolumeData);
+  let volumeDataLoading = $derived($currentVolumeDataLoading);
+  let volumeDataError = $derived($currentVolumeDataError);
 
   // Use store directly for reactivity instead of prop
   let volumeSettings = $derived(
@@ -1278,13 +1286,26 @@
       onClose={() => (showContextMenu = false)}
     />
   {/if}
-{:else if volume === null}
-  <!-- Still loading from IndexedDB -->
+{:else if volume && volumeDataLoading}
+  <!-- Volume metadata is known but its pages/images are still loading
+       (e.g. a server-library volume fetching pages over HTTP) -->
   <div class="fixed top-1/2 left-1/2 z-50">
     <Spinner />
   </div>
+{:else if volume && volumeDataError}
+  <!-- Volume metadata is known but loading its data failed -->
+  <div class="flex h-screen w-screen flex-col items-center justify-center gap-4">
+    <p class="text-lg text-gray-400">Failed to load volume</p>
+    <p class="max-w-md text-center text-sm text-gray-500">{volumeDataError}</p>
+    <button
+      class="rounded bg-primary-600 px-4 py-2 text-white hover:bg-primary-700"
+      onclick={() => navigateBack()}
+    >
+      Go Back
+    </button>
+  </div>
 {:else}
-  <!-- Volume not found or no data -->
+  <!-- Volume not found -->
   <div class="flex h-screen w-screen flex-col items-center justify-center gap-4">
     <p class="text-lg text-gray-400">Volume not found</p>
     <button
