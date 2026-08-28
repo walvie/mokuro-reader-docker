@@ -1,7 +1,7 @@
 import { db } from '$lib/catalog/db';
 import type { VolumeData, VolumeMetadata } from '$lib/types';
 import { liveQuery } from 'dexie';
-import { derived, readable, type Readable } from 'svelte/store';
+import { derived, readable, writable, type Readable } from 'svelte/store';
 import { deriveSeriesFromVolumes } from '$lib/catalog/catalog';
 import { unifiedCloudManager } from '$lib/util/sync/unified-cloud-manager';
 import { generatePlaceholders } from '$lib/catalog/placeholders';
@@ -136,37 +136,69 @@ export const currentVolume = derived(
   }
 );
 
+// Set while a load is in flight for the CURRENT volume, so the reader can
+// show a loading state instead of "Volume not found" while e.g. a
+// server-library volume's pages are still being fetched over HTTP.
+const currentVolumeDataLoadingStore = writable(false);
+export const currentVolumeDataLoading: Readable<boolean> = currentVolumeDataLoadingStore;
+
+// Set when loadCurrentVolumeData() throws for the CURRENT volume (network
+// failure, bad response, etc.), cleared on a successful load or on
+// navigating to a different volume. Lets the reader distinguish "still
+// loading"/"genuinely absent" from "failed to load" instead of collapsing
+// all three into the same generic message.
+const currentVolumeDataErrorStore = writable<string | undefined>(undefined);
+export const currentVolumeDataError: Readable<string | undefined> = currentVolumeDataErrorStore;
+
 export const currentVolumeData: Readable<VolumeData | undefined> = derived(
   [currentVolume],
   ([$currentVolume], set: (value: VolumeData | undefined) => void) => {
-    // Track the last volume UUID to avoid unnecessary clears
-    // This prevents flash when unrelated volumes are added to the database
+    // Track the last volume UUID so navigating between two store emissions
+    // for the SAME volume (e.g. a server-library thumbnail backfilling in
+    // the background) doesn't clear already-loaded data or kick off a
+    // redundant fetch — only an actual navigation should do that.
     const newUuid = $currentVolume?.volume_uuid;
-
-    // Only clear data when actually navigating to a different volume
-    // Don't clear if the store just emitted a new object reference for the same volume
-    if (newUuid !== currentVolumeDataLastUuid) {
-      currentVolumeDataLastUuid = newUuid;
-      // Clear old data synchronously to prevent state leaks between volumes
-      set(undefined);
+    if (newUuid === currentVolumeDataLastUuid) {
+      return;
     }
+    currentVolumeDataLastUuid = newUuid;
+
+    // Clear old data synchronously to prevent state leaks between volumes
+    set(undefined);
+    currentVolumeDataErrorStore.set(undefined);
 
     if ($currentVolume) {
+      currentVolumeDataLoadingStore.set(true);
       loadCurrentVolumeData($currentVolume)
         .then((volumeData) => {
+          // Ignore a stale result from a navigation the user has since left
+          if (newUuid !== currentVolumeDataLastUuid) return;
           if (volumeData) {
             set(volumeData);
+          } else {
+            currentVolumeDataErrorStore.set('Volume data not found');
           }
         })
         .catch((error) => {
           console.error('Failed to load current volume data:', error);
+          if (newUuid !== currentVolumeDataLastUuid) return;
+          currentVolumeDataErrorStore.set(
+            error instanceof Error ? error.message : 'Failed to load volume data'
+          );
+        })
+        .finally(() => {
+          if (newUuid === currentVolumeDataLastUuid) {
+            currentVolumeDataLoadingStore.set(false);
+          }
         });
+    } else {
+      currentVolumeDataLoadingStore.set(false);
     }
   },
   undefined // Initial value
 );
 
-// Track last volume UUID to prevent unnecessary data clears
+// Track last volume UUID to prevent unnecessary data clears/reloads
 let currentVolumeDataLastUuid: string | undefined;
 
 /**
