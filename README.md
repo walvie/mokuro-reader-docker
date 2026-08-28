@@ -310,12 +310,19 @@ queue, progress tracking, and API are thoroughly tested against a fake
 mokuro process standing in for the real one) — the actual `python -m
 mokuro` invocation was verified against mokuro's published source rather
 than a live run. Keep an eye on the job log (expand "Show log" on a failed
-job) the first time you process something for real. (One such issue already
-surfaced and was fixed this way: mokuro depends on `opencv-python`, whose
-GUI/X11 bindings fail to import on a minimal Debian image with
-`libxcb.so.1: cannot open shared object file`; the Dockerfile now swaps it
-for `opencv-python-headless` right after install, which needs no GUI
-libraries at all.)
+job) the first time you process something for real. Two dependency-install
+issues already surfaced this way and are fixed in the current Dockerfile:
+
+- mokuro depends on `opencv-python`, whose GUI/X11 bindings fail to import
+  on a minimal Debian image (`libxcb.so.1: cannot open shared object
+  file`) — swapped for `opencv-python-headless` right after install, which
+  needs no GUI libraries at all.
+- `torch` and `torchvision` were being installed in separate pip commands,
+  which let pip pick a mismatched pair (torchvision ships compiled ops
+  built against one specific torch build) and failed at import time with
+  `operator torchvision::nms does not exist` — both are now installed
+  together in one command from PyTorch's CPU wheel index, which is the
+  only way pip resolves a compatible pair.
 
 ## 💬 Community
 
