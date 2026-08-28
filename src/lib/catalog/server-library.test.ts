@@ -13,7 +13,8 @@ import {
   serverLibraryVolumes,
   refreshServerLibrary,
   loadServerVolumeData,
-  fetchServerVolumeOcr
+  fetchServerVolumeOcr,
+  rescanServerLibrary
 } from './server-library';
 import { generateThumbnail } from '$lib/catalog/thumbnails';
 
@@ -179,6 +180,57 @@ describe('server-library', () => {
 
       const ocr = await fetchServerVolumeOcr('v1');
       expect(ocr).toBeUndefined();
+    });
+  });
+
+  describe('rescanServerLibrary', () => {
+    it('POSTs /api/rescan, then reloads serverLibraryVolumes from the fresh scan', async () => {
+      const mockFetch = fetch as unknown as ReturnType<typeof vi.fn>;
+      mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+        if (url === '/api/rescan' && init?.method === 'POST') {
+          return Promise.resolve(jsonResponse({ ok: true, volumeCount: 1 }));
+        }
+        if (url === '/api/volumes') {
+          return Promise.resolve(
+            jsonResponse([
+              {
+                volume_uuid: 'v3',
+                series_uuid: 's3',
+                series_title: 'Series',
+                volume_title: 'Volume 01',
+                mokuro_version: '0.2.0',
+                page_count: 1,
+                character_count: 0,
+                page_char_counts: [0],
+                cover_path: null
+              }
+            ])
+          );
+        }
+        return Promise.resolve(jsonResponse({}));
+      });
+
+      const result = await rescanServerLibrary();
+
+      expect(result).toEqual({ volumeCount: 1 });
+      expect(mockFetch).toHaveBeenCalledWith('/api/rescan', { method: 'POST' });
+      expect(get(serverLibraryVolumes)['v3']).toMatchObject({ volume_title: 'Volume 01' });
+    });
+
+    it('throws when the rescan endpoint responds with a non-OK status', async () => {
+      (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+        jsonResponse(null, false, 500)
+      );
+
+      await expect(rescanServerLibrary()).rejects.toThrow('HTTP 500');
+    });
+
+    it('propagates a network error instead of silently swallowing it', async () => {
+      (fetch as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('library-server unreachable')
+      );
+
+      await expect(rescanServerLibrary()).rejects.toThrow('library-server unreachable');
     });
   });
 });

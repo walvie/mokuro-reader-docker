@@ -1,8 +1,9 @@
 <script lang="ts">
   import { AccordionItem, Button, Label, Range, Select, Toggle } from 'flowbite-svelte';
   import { db } from '$lib/catalog/db';
-  import { promptConfirmation } from '$lib/util';
+  import { promptConfirmation, showSnackbar } from '$lib/util';
   import { clearVolumes } from '$lib/settings';
+  import { rescanServerLibrary } from '$lib/catalog/server-library';
   import {
     catalogSettings,
     updateCatalogSetting,
@@ -96,6 +97,21 @@
   function onClear() {
     promptConfirmation('Are you sure you want to clear your catalog?', onConfirm);
     nav.toCatalog();
+  }
+
+  let isRescanning = $state(false);
+
+  async function onRescanServerLibrary() {
+    isRescanning = true;
+    try {
+      const { volumeCount } = await rescanServerLibrary();
+      showSnackbar(`Server library refreshed: ${volumeCount} volume${volumeCount === 1 ? '' : 's'}`);
+    } catch (error) {
+      console.error('Failed to rescan server library:', error);
+      showSnackbar('Server library refresh failed (is library-server running?)');
+    } finally {
+      isRescanning = false;
+    }
   }
 
   let isCustom = $derived($catalogSettings?.stackingPreset === 'custom');
@@ -245,6 +261,9 @@
 
     <div class="flex flex-col gap-2">
       <Button onclick={() => nav.toMergeSeries()} outline color="blue">Merge series</Button>
+      <Button onclick={onRescanServerLibrary} outline color="blue" disabled={isRescanning}>
+        {isRescanning ? 'Refreshing…' : 'Refresh server library'}
+      </Button>
       <Button onclick={onClear} outline color="red">Clear catalog</Button>
     </div>
   </div>

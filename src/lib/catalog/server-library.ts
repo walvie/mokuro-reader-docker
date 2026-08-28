@@ -122,6 +122,28 @@ export function initServerLibrary(): void {
   void refreshServerLibrary();
 }
 
+/**
+ * Trigger a fresh directory scan on the library-server (POST /api/rescan —
+ * picks up manga added/removed on disk since the last scan/startup), then
+ * reload `serverLibraryVolumes` from the result. Used by the "Refresh
+ * library" button in Catalog settings.
+ *
+ * Throws on failure (unreachable server, non-OK response) so the caller can
+ * surface it — unlike refreshServerLibrary(), this is a deliberate user
+ * action, so silently doing nothing would be confusing.
+ */
+export async function rescanServerLibrary(): Promise<{ volumeCount: number }> {
+  const res = await fetch('/api/rescan', { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(`Rescan failed: HTTP ${res.status}`);
+  }
+  const result: { ok: boolean; volumeCount: number } = await res.json();
+
+  await refreshServerLibrary();
+
+  return { volumeCount: result.volumeCount };
+}
+
 const THUMBNAIL_CONCURRENCY = 4;
 
 async function backfillThumbnails(summaries: ServerVolumeSummary[]): Promise<void> {
