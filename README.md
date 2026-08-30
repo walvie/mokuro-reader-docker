@@ -315,7 +315,7 @@ issues already surfaced this way and are fixed in the current Dockerfile:
 
 - mokuro depends on `opencv-python`, whose GUI/X11 bindings fail to import
   on a minimal Debian image (`libxcb.so.1: cannot open shared object
-  file`) — swapped for `opencv-python-headless` right after install, which
+file`) — swapped for `opencv-python-headless` right after install, which
   needs no GUI libraries at all.
 - `torch` and `torchvision` were being installed in separate pip commands,
   which let pip pick a mismatched pair (torchvision ships compiled ops
@@ -323,6 +323,36 @@ issues already surfaced this way and are fixed in the current Dockerfile:
   `operator torchvision::nms does not exist` — both are now installed
   together in one command from PyTorch's CPU wheel index, which is the
   only way pip resolves a compatible pair.
+
+### 🃏 Connecting AnkiConnect over LAN/Tailscale
+
+AnkiConnect runs on your PC (wherever Anki is installed), separate from
+this app — self-hosting the reader just means you're now reaching
+AnkiConnect from a different machine/hostname instead of `localhost`, which
+AnkiConnect doesn't allow out of the box. If the browser console shows a
+CORS error (Firefox: "CORS request did not succeed", status `null`; Chrome:
+"Failed to fetch") when connecting, check AnkiConnect's config (Anki:
+**Tools → Add-ons → AnkiConnect → Config**, then restart Anki) for two
+separate settings — both are required for remote access, and missing
+either one produces the same generic browser error:
+
+```json
+{
+  "webBindAddress": "0.0.0.0",
+  "webCorsOriginList": ["http://your-reader-origin:8080"]
+}
+```
+
+- **`webBindAddress`** defaults to `"127.0.0.1"`, which only accepts
+  connections that originate from the same machine Anki is running on —
+  reaching it via a LAN IP or a Tailscale hostname (instead of
+  `localhost`/`127.0.0.1`) fails outright at the network level, before CORS
+  even comes into play. Set it to `"0.0.0.0"` to listen on every interface.
+  This does mean AnkiConnect becomes reachable from your whole
+  network/tailnet, not just this app — make sure that's a network you trust.
+- **`webCorsOriginList`** must contain the exact origin this app is served
+  from (scheme + host + port, no trailing path) — the in-app AnkiConnect
+  settings panel (Settings → AnkiConnect) displays the exact string to add.
 
 ## 💬 Community
 

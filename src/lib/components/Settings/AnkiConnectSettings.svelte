@@ -108,7 +108,12 @@
     <Helper>
       To use AnkiConnect integration, add this reader (<code class="text-primary-500"
         >{$page.url.origin}</code
-      >) to your AnkiConnect <b class="text-primary-500">webCorsOriginList</b> setting.
+      >) to your AnkiConnect <b class="text-primary-500">webCorsOriginList</b> setting. Connecting
+      to AnkiConnect on another device (e.g. over LAN or Tailscale, not
+      <code>localhost</code>) also requires setting <b class="text-primary-500">webBindAddress</b>
+      to <code>"0.0.0.0"</code> — it defaults to <code>"127.0.0.1"</code>, which only accepts
+      connections from the same machine Anki is running on and will fail to connect (Anki's Tools →
+      Add-ons → AnkiConnect → Config, then restart Anki).
     </Helper>
 
     <!-- Connection Section -->

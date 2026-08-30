@@ -499,11 +499,19 @@ export async function testConnection(testUrl?: string): Promise<ConnectionTestRe
       version: json.result
     };
   } catch (e: any) {
-    // Distinguish between different error types
     const errorMessage = e?.message ?? String(e);
 
-    // CORS errors typically show as "Failed to fetch" or similar network errors
-    if (e instanceof TypeError && errorMessage.includes('Failed to fetch')) {
+    // A blocked/failed cross-origin fetch() always rejects with a generic
+    // TypeError, by design — the Fetch spec gives page script no way to
+    // distinguish "Anki isn't running", "wrong URL/port", "Anki is running
+    // but refused this origin" (webCorsOriginList), or "AnkiConnect isn't
+    // listening on this interface" (webBindAddress still the 127.0.0.1
+    // default, which breaks reaching it via a LAN/Tailscale hostname). Only
+    // the wording of e.message differs by browser (Chrome: "Failed to
+    // fetch", Firefox: "NetworkError when attempting to fetch resource.",
+    // Safari: "Load failed") — matching on TypeError itself instead of
+    // browser-specific substrings covers all of them uniformly.
+    if (e instanceof TypeError) {
       // Try requesting permission from Anki - this triggers a popup in Anki
       const granted = await requestAnkiPermission(url);
 
@@ -512,20 +520,11 @@ export async function testConnection(testUrl?: string): Promise<ConnectionTestRe
         return testConnection(testUrl);
       }
 
-      // Permission not granted or request failed
-      return {
-        success: false,
-        error: 'cors',
-        message:
-          'Connection blocked. If Anki showed a permission popup, click "Yes" and try again. Otherwise, add this site to webCorsOriginList in AnkiConnect settings.'
-      };
-    }
-
-    if (errorMessage.includes('NetworkError') || errorMessage.includes('net::')) {
       return {
         success: false,
         error: 'network',
-        message: 'Network error: Check that Anki is running and the URL is correct'
+        message:
+          'Cannot reach AnkiConnect. If Anki showed a permission popup, click "Yes" and try again. Otherwise check: Anki is running, the URL/port is correct, this site\'s origin is in AnkiConnect\'s webCorsOriginList, and — if connecting over a LAN or Tailscale hostname rather than localhost — that AnkiConnect\'s webBindAddress is set to "0.0.0.0" (it defaults to 127.0.0.1, which refuses connections from anywhere but the same machine).'
       };
     }
 
@@ -565,7 +564,11 @@ export async function ankiConnect(
     // Provide more helpful error messages
     const errorMessage = e?.message ?? String(e);
 
-    if (e instanceof TypeError && errorMessage.includes('Failed to fetch')) {
+    // See the matching comment in testConnection() above: a blocked/failed
+    // cross-origin fetch() always rejects as a generic TypeError regardless
+    // of browser, so match on the type rather than a browser-specific
+    // message substring (which previously missed this on Firefox/Safari).
+    if (e instanceof TypeError) {
       // Try requesting permission if we haven't already retried
       if (!options?.retried) {
         const granted = await requestAnkiPermission(url);
@@ -576,7 +579,7 @@ export async function ankiConnect(
       }
 
       showSnackbar(
-        'Error: Cannot connect to AnkiConnect. If Anki showed a permission popup, click "Yes" and try again.'
+        'Error: Cannot reach AnkiConnect. If Anki showed a permission popup, click "Yes" and try again. Otherwise check the AnkiConnect settings (URL, webCorsOriginList, and webBindAddress for remote connections).'
       );
     } else {
       showSnackbar(`Error: ${errorMessage}`);
